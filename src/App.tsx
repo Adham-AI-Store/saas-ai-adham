@@ -102,8 +102,24 @@ export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
 
   const [adminSecret, setAdminSecret] = useState("");
+  const [adminVisible, setAdminVisible] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminAuthenticated, setAdminAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
   const [lookupOrderId, setLookupOrderId] = useState("");
   const [lookupEmail, setLookupEmail] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("admin") === "1") setAdminVisible(true);
+  }, []);
+
+  useEffect(() => {
+    if (!adminVisible) return;
+    const hasSession = sessionStorage.getItem("admin-session-ok") === "1";
+    setAdminAuthenticated(hasSession);
+  }, [adminVisible]);
 
   useEffect(() => {
     const raw = localStorage.getItem(storageKey);
@@ -202,6 +218,11 @@ export default function App() {
   };
 
   const runOpenAIForOrder = async (orderId: string) => {
+    if (!adminAuthenticated) {
+      alert("سجل دخول الأدمن أولا.");
+      return;
+    }
+
     const secret = adminSecret.trim();
     if (!secret) {
       alert("ادخل Admin Secret أولاً.");
@@ -284,6 +305,42 @@ export default function App() {
     localStorage.removeItem(storageKey);
   };
 
+  const loginAdmin = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!adminPassword.trim()) return;
+
+    setAuthLoading(true);
+    setAuthError("");
+
+    try {
+      const response = await fetch("/api/admin-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: adminPassword }),
+      });
+
+      if (!response.ok) {
+        setAuthError("كلمة مرور الأدمن غير صحيحة.");
+        setAuthLoading(false);
+        return;
+      }
+
+      setAdminAuthenticated(true);
+      sessionStorage.setItem("admin-session-ok", "1");
+      setAdminPassword("");
+      setAuthLoading(false);
+    } catch {
+      setAuthError("تعذر تسجيل الدخول حاليا.");
+      setAuthLoading(false);
+    }
+  };
+
+  const logoutAdmin = () => {
+    setAdminAuthenticated(false);
+    setAdminSecret("");
+    sessionStorage.removeItem("admin-session-ok");
+  };
+
   return (
     <div dir="rtl" className="bg-zinc-950 text-zinc-100">
       <header className="relative isolate min-h-screen overflow-hidden">
@@ -310,6 +367,14 @@ export default function App() {
             >
               شراء الآن
             </a>
+            {adminVisible && (
+              <a
+                href="#admin"
+                className="rounded-md border border-zinc-100/35 px-6 py-3 font-semibold text-white transition hover:bg-zinc-100/10"
+              >
+                لوحة Admin
+              </a>
+            )}
           </div>
         </div>
       </header>
@@ -491,13 +556,50 @@ export default function App() {
           )}
         </section>
 
-        <section id="admin" className="mx-auto max-w-6xl px-6 py-16 lg:px-10">
+        {adminVisible && (
+          <section id="admin" className="mx-auto max-w-6xl px-6 py-16 lg:px-10">
+          {!adminAuthenticated ? (
+            <>
+              <h2 className="text-3xl font-bold text-white md:text-4xl">Admin Login</h2>
+              <p className="mt-3 max-w-2xl text-zinc-300">لوحة الأدمن مخفية ومقفولة. ادخل كلمة المرور للمتابعة.</p>
+              <form onSubmit={loginAdmin} className="mt-6 max-w-xl rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
+                <label className="block space-y-2">
+                  <span className="text-sm text-zinc-300">كلمة مرور الأدمن</span>
+                  <input
+                    type="password"
+                    value={adminPassword}
+                    onChange={(event) => setAdminPassword(event.target.value)}
+                    placeholder="ادخل كلمة المرور"
+                    className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-4 py-3 outline-none ring-emerald-300 placeholder:text-zinc-500 focus:ring"
+                  />
+                </label>
+                {authError && <p className="mt-3 text-sm text-red-300">{authError}</p>}
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="mt-4 rounded-md bg-emerald-400 px-5 py-3 font-semibold text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {authLoading ? "جار التحقق..." : "دخول الأدمن"}
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
           <h2 className="text-3xl font-bold text-white md:text-4xl">Admin</h2>
           <p className="mt-3 max-w-2xl text-zinc-300">
             الطلبات الجديدة تظهر هنا مع إثبات التحويل. بعد المراجعة اضغط "تأكيد الدفع وتنفيذ الخدمة".
           </p>
 
           <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
+            <div className="mb-4 flex justify-end">
+              <button
+                type="button"
+                onClick={logoutAdmin}
+                className="rounded-md border border-zinc-600 px-4 py-2 text-xs font-semibold text-zinc-200 transition hover:bg-zinc-800"
+              >
+                تسجيل خروج الأدمن
+              </button>
+            </div>
             <label className="block space-y-2">
               <span className="text-sm text-zinc-300">Admin Secret (لا يظهر للعميل)</span>
               <input
@@ -605,7 +707,10 @@ export default function App() {
               مسح كل الطلبات
             </button>
           </div>
-        </section>
+            </>
+          )}
+          </section>
+        )}
       </main>
     </div>
   );
