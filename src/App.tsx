@@ -310,12 +310,6 @@ export default function App() {
             >
               شراء الآن
             </a>
-            <a
-              href="#admin"
-              className="rounded-md border border-zinc-100/35 px-6 py-3 font-semibold text-white transition hover:bg-zinc-100/10"
-            >
-              لوحة Admin
-            </a>
           </div>
         </div>
       </header>
